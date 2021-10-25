@@ -5,33 +5,41 @@ import * as path from "path";
 import * as url from "url";
 
 const server = http.createServer()
+let cacheTime = 3600 * 24
 
 server.on('request', (request: IncomingMessage, response: ServerResponse) => {
     const {method, headers} = request
-    const obj = url.parse(request.url)
-    console.log(obj)
-    switch (request.url) {
-        case '/index.html':
-            fs.readFile(path.resolve(__dirname, 'public', 'index.html'), (err, data) => {
-                if (err) throw err
-                response.end(data.toString())
-            })
-            break;
-        case '/style.css':
-            response.setHeader('Content-Type', 'text/css;charset=utf-8')
-            fs.readFile(path.resolve(__dirname, 'public', 'style.css'), (err, data) => {
-                if (err) throw err
-                response.end(data.toString())
-            })
-            break;
-        case '/main.js':
-            response.setHeader('Content-Type','text/javascript;charset=utf-8')
-            fs.readFile(path.resolve(__dirname, 'public', 'main.js'), (err, data) => {
-                if (err) throw err
-                response.end(data.toString())
-            })
-            break;
+    let {pathname, search} = url.parse(request.url)
+
+    if(method !== 'GET') {
+        response.statusCode = 405
+        response.end()
+        return
     }
+
+    if (pathname === '/') {
+        pathname = '/index.html'
+    }
+    fs.readFile(path.resolve(__dirname + '/public' + pathname), (err, data) => {
+        if (err) {
+            if (err.errno === -4058) {
+                response.statusCode = 404
+                fs.readFile(path.resolve( './public/404.html'), (err, data) => {
+                    response.end(data)
+                })
+            } else if (err.errno === -4068) {
+                response.statusCode = 403
+                response.end('无权查看目录')
+            } else {
+                response.statusCode = 500
+                response.end('server error')
+            }
+        }else{
+            response.setHeader('Cache-Control',`public, max-age=${cacheTime}`)
+            response.end(data)
+        }
+
+    })
 })
 
 server.listen(8888)
